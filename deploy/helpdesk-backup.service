@@ -1,0 +1,9 @@
+[Unit]
+Description=Backup Corporate Help Desk SQLite database
+
+[Service]
+Type=oneshot
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/helpdesk
+ExecStart=/home/pi/helpdesk/venv/bin/python scripts/backup.py --db helpdesk.db --backup-dir backups --keep 14

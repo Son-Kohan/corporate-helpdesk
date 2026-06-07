@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Help Desk</title>
+  <link rel="stylesheet" href="/static/css/styles.css?v=20260607-v3">
+</head>
+<body>
+  <section id="auth-screen" class="auth-layout">
+    <div class="auth-panel">
+      <div class="auth-head">
+        <h1>Help Desk</h1>
+        <p>Корпоративная обработка заявок</p>
+      </div>
+
+      <div class="segmented" role="tablist">
+        <button id="login-tab" class="segment active" type="button">Вход</button>
+        <button id="register-tab" class="segment" type="button">Регистрация</button>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <div class="segmented login-methods" role="tablist" aria-label="Способ входа">
+          <button id="name-login-tab" class="segment active" type="button">По имени и фамилии</button>
+          <button id="username-login-tab" class="segment" type="button">По логину</button>
+        </div>
+        <div id="name-login-fields" class="auth-fields">
+          <label>
+            Имя
+            <input name="first_name" autocomplete="given-name" required minlength="1" maxlength="60">
+          </label>
+          <label>
+            Фамилия
+            <input name="last_name" autocomplete="family-name" required minlength="1" maxlength="60">
+          </label>
+        </div>
+        <div id="username-login-fields" class="auth-fields hidden">
+          <label>
+            Логин
+            <input name="username" autocomplete="username" minlength="2" maxlength="50" disabled>
+          </label>
+        </div>
+        <label>
+          Пароль
+          <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <label class="remember-check">
+          <input name="remember" type="checkbox">
+          <span>Не выходить</span>
+        </label>
+        <button class="primary-button" type="submit">Войти</button>
+      </form>
+
+      <form id="register-form" class="auth-form hidden">
+        <label>
+          Имя
+          <input name="first_name" autocomplete="given-name" required minlength="1" maxlength="60">
+        </label>
+        <label>
+          Фамилия
+          <input name="last_name" autocomplete="family-name" required minlength="1" maxlength="60">
+        </label>
+        <label>
+          Пароль
+          <input name="password" type="password" autocomplete="new-password" required minlength="4">
+        </label>
+        <button class="primary-button" type="submit">Создать аккаунт</button>
+      </form>
+
+      <p id="auth-message" class="message hidden"></p>
+    </div>
+  </section>
+
+  <section id="app-screen" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">HD</span>
+        <div>
+          <strong>Help Desk</strong>
+          <small>ООО СМК</small>
+        </div>
+      </div>
+      <nav class="nav">
+        <button class="nav-button active" type="button" data-view="create-view">Создать заявку</button>
+        <button class="nav-button" type="button" data-view="tickets-view">Заявки</button>
+        <button id="reports-nav" class="nav-button" type="button" data-view="reports-view">Отчеты</button>
+        <button id="notifications-nav" class="nav-button" type="button" data-view="notifications-view">Уведомления <span id="notification-count"></span></button>
+        <button id="settings-nav" class="nav-button hidden" type="button" data-view="settings-view">Настройки</button>
+        <button class="nav-button" type="button" data-view="profile-view">Профиль</button>
+      </nav>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <h2 id="view-title">Создать заявку</h2>
+          <span id="connection-state" class="connection-state">offline</span>
+        </div>
+        <div class="userbar">
+          <span id="current-user"></span>
+          <button id="logout-button" class="ghost-button" type="button">Выйти</button>
+        </div>
+      </header>
+
+      <section id="create-view" class="view">
+        <div class="create-layout">
+          <section class="panel ticket-create">
+            <h3>Новая заявка</h3>
+            <form id="ticket-form" class="stack-form">
+              <label>
+                Тема
+                <input name="title" required minlength="3" maxlength="200">
+              </label>
+              <label>
+                Приоритет
+                <select name="priority">
+                  <option value="low">Низкий</option>
+                  <option value="medium" selected>Средний</option>
+                  <option value="high">Высокий</option>
+                  <option value="critical">Критический</option>
+                </select>
+              </label>
+              <label>
+                Категория
+                <select id="create-category" name="category_id">
+                  <option value="">Без категории</option>
+                </select>
+              </label>
+              <label>
+                Описание
+                <textarea name="description" required minlength="5" rows="7"></textarea>
+              </label>
+              <label class="full">
+                Файл (необязательно)
+                <input name="file" type="file">
+              </label>
+              <button class="primary-button" type="submit">Создать</button>
+            </form>
+          </section>
+          <section class="panel recent-panel">
+            <div class="panel-row">
+              <h3>Последние заявки</h3>
+              <button id="open-all-tickets" class="secondary-button" type="button">Все заявки</button>
+            </div>
+            <div id="recent-tickets" class="recent-tickets"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="tickets-view" class="view hidden">
+        <div class="queue-layout">
+          <section class="panel ticket-list-panel">
+            <div class="panel-row">
+              <h3 id="tickets-heading">Все заявки</h3>
+              <button id="refresh-tickets" class="icon-button" type="button" title="Обновить">↻</button>
+            </div>
+            <form id="filter-form" class="filters">
+              <select id="ticket-scope" name="scope">
+                <option value="all">Все заявки</option>
+                <option value="mine">Мои заявки</option>
+                <option value="assigned">Назначенные мне</option>
+                <option value="department">Заявки отдела</option>
+              </select>
+              <input name="q" placeholder="Поиск">
+              <select name="status">
+                <option value="">Все статусы</option>
+                <option value="new">Новые</option>
+                <option value="in_progress">В работе</option>
+                <option value="waiting">Ожидают</option>
+                <option value="resolved">Ожидают подтверждения</option>
+                <option value="closed">Закрытые</option>
+                <option value="cancelled">Отмененные</option>
+              </select>
+              <select id="filter-category" name="category_id">
+                <option value="">Все категории</option>
+              </select>
+              <select name="priority">
+                <option value="">Все приоритеты</option>
+                <option value="low">Низкий</option>
+                <option value="medium">Средний</option>
+                <option value="high">Высокий</option>
+                <option value="critical">Критический</option>
+              </select>
+              <select name="sort_by">
+                <option value="created_at">По дате</option>
+                <option value="priority">По приоритету</option>
+                <option value="status">По статусу</option>
+                <option value="title">По теме</option>
+              </select>
+              <select name="sort_dir">
+                <option value="desc">По убыванию</option>
+                <option value="asc">По возрастанию</option>
+              </select>
+              <button class="secondary-button" type="submit">Применить</button>
+            </form>
+            <div class="panel-row">
+              <div class="detail-actions">
+                <button id="export-tickets" class="secondary-button" type="button">Экспорт CSV</button>
+                <button id="bulk-tickets" class="secondary-button hidden" type="button">Изменить выбранные</button>
+              </div>
+              <div class="pager">
+                <button id="prev-page" class="secondary-button" type="button">Назад</button>
+                <span id="page-label">Страница 1</span>
+                <button id="next-page" class="secondary-button" type="button">Дальше</button>
+              </div>
+            </div>
+            <div id="ticket-list" class="ticket-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="ticket-edit-view" class="view hidden">
+        <section id="ticket-detail" class="panel ticket-detail">
+          <div class="empty-state">Загрузка заявки</div>
+        </section>
+      </section>
+
+      <section id="reports-view" class="view hidden">
+        <div class="report-grid">
+          <section class="metric">
+            <span>Всего заявок</span>
+            <strong id="metric-total">0</strong>
+          </section>
+          <section class="metric">
+            <span>Просрочено SLA</span>
+            <strong id="metric-overdue">0</strong>
+          </section>
+          <section class="panel report-panel">
+            <h3>Статусы</h3>
+            <div id="status-report" class="bar-list"></div>
+          </section>
+          <section class="panel report-panel">
+            <h3>Приоритеты</h3>
+            <div id="priority-report" class="bar-list"></div>
+          </section>
+          <section class="panel report-panel wide">
+            <h3>Динамика за 7 дней</h3>
+            <div id="day-report" class="day-chart"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="notifications-view" class="view hidden">
+        <section class="panel">
+          <div class="panel-row">
+            <h3>Уведомления</h3>
+            <button id="read-all-notifications" class="secondary-button" type="button">Прочитать все</button>
+          </div>
+          <div id="notifications-list" class="notification-list"></div>
+        </section>
+      </section>
+
+      <section id="user-edit-view" class="view hidden">
+        <section id="user-detail" class="panel user-detail">
+          <div class="empty-state">Загрузка пользователя</div>
+        </section>
+      </section>
+
+      <section id="role-edit-view" class="view hidden">
+        <section id="role-detail" class="panel role-detail">
+          <div class="empty-state">Загрузка роли</div>
+        </section>
+      </section>
+
+      <section id="settings-view" class="view hidden">
+        <nav class="settings-tabs" role="tablist" aria-label="Разделы настроек">
+          <button id="settings-users-tab" class="settings-tab active" type="button" role="tab" aria-selected="true" data-settings-tab="settings-users-panel">
+            Пользователи <span id="settings-user-count" class="tab-count">0</span>
+          </button>
+          <button id="settings-roles-tab" class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="settings-roles-panel">
+            Права <span id="settings-role-count" class="tab-count">0</span>
+          </button>
+          <button id="settings-categories-tab" class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="settings-categories-panel">
+            Категории <span id="settings-category-count" class="tab-count">0</span>
+          </button>
+          <button id="settings-departments-tab" class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="settings-departments-panel">
+            Отделы <span id="settings-department-count" class="tab-count">0</span>
+          </button>
+          <button id="settings-sla-tab" class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="settings-sla-panel">SLA</button>
+          <button id="settings-audit-tab" class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="settings-audit-panel">
+            Журнал действий
+          </button>
+        </nav>
+
+        <div class="settings-content">
+          <section id="settings-users-panel" class="panel settings-panel" role="tabpanel">
+            <div class="panel-row">
+              <h3>Пользователи</h3>
+              <div class="detail-actions">
+                <button id="create-user" class="primary-button" type="button">Новый пользователь</button>
+                <button id="refresh-users" class="icon-button" type="button" title="Обновить">↻</button>
+              </div>
+            </div>
+            <div id="users-list" class="users-list"></div>
+          </section>
+
+          <section id="settings-roles-panel" class="panel settings-panel hidden" role="tabpanel">
+            <div class="panel-row">
+              <h3>Роли и права</h3>
+              <div class="detail-actions">
+                <button id="create-role" class="primary-button" type="button">Новая роль</button>
+                <button id="refresh-roles" class="icon-button" type="button" title="Обновить">↻</button>
+              </div>
+            </div>
+            <div id="roles-list" class="roles-list"></div>
+          </section>
+
+          <section id="settings-categories-panel" class="panel settings-panel hidden" role="tabpanel">
+            <div class="panel-row"><h3>Категории заявок</h3></div>
+            <form id="category-form" class="settings-editor category-editor">
+              <label>Название<input name="name" required minlength="2" maxlength="120"></label>
+              <label>SLA, часов<input name="sla_hours" type="number" min="1" max="8760" placeholder="По приоритету"></label>
+              <label>Автоназначение<select name="default_assignee_id"><option value="">Без автоназначения</option></select></label>
+              <label>Состояние<select name="is_active"><option value="true">Активна</option><option value="false">Отключена</option></select></label>
+              <div class="settings-editor-actions">
+                <button class="primary-button" type="submit">Добавить категорию</button>
+                <button class="secondary-button cancel-settings-edit hidden" type="button">Отменить</button>
+              </div>
+            </form>
+            <div id="categories-list" class="catalog-list"></div>
+          </section>
+
+          <section id="settings-departments-panel" class="panel settings-panel hidden" role="tabpanel">
+            <div class="panel-row"><h3>Отделы</h3></div>
+            <form id="department-form" class="settings-editor department-editor">
+              <label>Название<input name="name" required minlength="2" maxlength="120"></label>
+              <label>Руководитель<select name="manager_id"><option value="">Без руководителя</option></select></label>
+              <label>Состояние<select name="is_active"><option value="true">Активен</option><option value="false">Отключен</option></select></label>
+              <div class="settings-editor-actions">
+                <button class="primary-button" type="submit">Добавить отдел</button>
+                <button class="secondary-button cancel-settings-edit hidden" type="button">Отменить</button>
+              </div>
+            </form>
+            <div id="departments-list" class="catalog-list"></div>
+          </section>
+
+          <section id="settings-sla-panel" class="panel settings-panel hidden" role="tabpanel">
+            <div class="panel-row"><h3>SLA по приоритету</h3></div>
+            <form id="sla-form" class="settings-editor sla-editor">
+              <label>Критический<input name="sla.critical" type="number" min="1" required></label>
+              <label>Высокий<input name="sla.high" type="number" min="1" required></label>
+              <label>Средний<input name="sla.medium" type="number" min="1" required></label>
+              <label>Низкий<input name="sla.low" type="number" min="1" required></label>
+              <div class="settings-editor-actions"><button class="primary-button" type="submit">Сохранить SLA</button></div>
+            </form>
+          </section>
+
+          <section id="settings-audit-panel" class="panel settings-panel hidden" role="tabpanel">
+            <div class="panel-row">
+              <h3>Журнал действий</h3>
+              <button id="export-users" class="secondary-button" type="button">Экспорт пользователей</button>
+            </div>
+            <div id="audit-list" class="history-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="profile-view" class="view hidden">
+        <div class="profile-layout">
+          <section class="panel">
+            <h3>Профиль</h3>
+            <form id="profile-form" class="stack-form">
+              <label>
+                Email (необязательно)
+                <input name="email" type="email">
+              </label>
+              <label>
+                Имя
+                <input name="first_name" required minlength="1" maxlength="60">
+              </label>
+              <label>
+                Фамилия
+                <input name="last_name" required minlength="1" maxlength="60">
+              </label>
+              <button class="primary-button" type="submit">Сохранить профиль</button>
+            </form>
+          </section>
+          <section class="panel">
+            <h3>Смена пароля</h3>
+            <form id="password-form" class="stack-form">
+              <label>
+                Текущий пароль
+                <input name="current_password" type="password" required minlength="4" maxlength="72">
+              </label>
+              <label>
+                Новый пароль
+                <input name="new_password" type="password" required minlength="4" maxlength="72">
+              </label>
+              <button class="secondary-button" type="submit">Сменить пароль</button>
+            </form>
+          </section>
+        </div>
+      </section>
+    </main>
+  </section>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/static/js/api.js?v=20260607-v1"></script>
+  <script src="/static/js/app.js?v=20260607-v1"></script>
+</body>
+</html>

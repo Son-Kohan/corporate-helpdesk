@@ -1,0 +1,13 @@
+.env
+.venv/
+.chrome-test-profile/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.db
+backups/
+logs/
+uploads/
+release/
+*-preview.png
+helpdesk-ui.png

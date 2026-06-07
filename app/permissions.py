@@ -1,0 +1,58 @@
+ALL_PERMISSIONS = {
+    "tickets.create": "Создание заявок",
+    "tickets.read_own": "Просмотр своих заявок",
+    "tickets.read_assigned": "Просмотр назначенных заявок",
+    "tickets.read_all": "Просмотр всех заявок",
+    "tickets.read_department": "Просмотр заявок своего отдела",
+    "tickets.update_own": "Редактирование своих заявок",
+    "tickets.update_all": "Редактирование всех заявок",
+    "tickets.assign": "Назначение исполнителей",
+    "tickets.delete": "Удаление заявок",
+    "tickets.bulk": "Массовая обработка заявок",
+    "tickets.workflow": "Изменение статуса заявки с комментарием",
+    "attachments.manage": "Вложения",
+    "users.read": "Просмотр пользователей",
+    "users.create": "Создание пользователей",
+    "users.update": "Редактирование пользователей",
+    "users.archive": "Архивация пользователей",
+    "users.delete": "Удаление пользователей без связанных данных",
+    "users.reset_password": "Сброс паролей пользователей",
+    "roles.manage": "Управление ролями и правами",
+    "catalogs.manage": "Управление категориями, отделами и SLA",
+    "audit.read": "Просмотр журнала действий",
+    "reports.view": "Просмотр отчетов",
+    "reports.export": "Экспорт отчетов",
+}
+
+DEFAULT_ROLE_PERMISSIONS = {
+    "user": [
+        "tickets.create",
+        "tickets.read_own",
+        "tickets.update_own",
+        "attachments.manage",
+    ],
+    "service": [
+        "tickets.create",
+        "tickets.read_own",
+        "tickets.read_assigned",
+        "tickets.read_all",
+        "tickets.read_department",
+        "tickets.update_all",
+        "tickets.assign",
+        "tickets.delete",
+        "tickets.bulk",
+        "tickets.workflow",
+        "attachments.manage",
+        "users.read",
+        "reports.view",
+        "reports.export",
+        "catalogs.manage",
+    ],
+    "admin": list(ALL_PERMISSIONS.keys()),
+}
+
+DEFAULT_ROLE_NAMES = {
+    "user": "Пользователь",
+    "service": "Сервисный сотрудник",
+    "admin": "Администратор",
+}

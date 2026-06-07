@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: helpdesk
+      POSTGRES_USER: helpdesk
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      - helpdesk_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U helpdesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      HELPDESK_DATABASE_URL: postgresql+asyncpg://helpdesk:change-me@db/helpdesk
+      HELPDESK_SECRET_KEY: replace-with-a-long-random-secret
+      HELPDESK_ADMIN_PASSWORD: change-me-now
+      HELPDESK_UPLOAD_DIR: /app/uploads
+      HELPDESK_NOTIFICATION_LOG: /app/logs/notifications.log
+    ports:
+      - "8000:8000"
+    volumes:
+      - helpdesk_uploads:/app/uploads
+      - helpdesk_logs:/app/logs
+
+volumes:
+  helpdesk_db:
+  helpdesk_uploads:
+  helpdesk_logs:
