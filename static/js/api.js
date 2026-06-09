@@ -4,6 +4,21 @@ class HelpDeskAPI {
     this.token = localStorage.getItem("helpdesk_token") || sessionStorage.getItem("helpdesk_token");
   }
 
+  formatErrorDetail(detail) {
+    if (!detail) {
+      return "Ошибка запроса";
+    }
+    if (typeof detail === "string") {
+      return detail;
+    }
+    if (Array.isArray(detail)) {
+      return detail
+        .map((item) => item?.msg || item?.message || String(item))
+        .join("; ");
+    }
+    return detail.message || detail.msg || JSON.stringify(detail);
+  }
+
   setToken(token, remember = false) {
     this.token = token;
     localStorage.removeItem("helpdesk_token");
@@ -43,7 +58,7 @@ class HelpDeskAPI {
 
     if (!response.ok) {
       const detail = typeof data === "string" ? data : data.detail;
-      throw new Error(detail || "Ошибка запроса");
+      throw new Error(this.formatErrorDetail(detail));
     }
     return data;
   }

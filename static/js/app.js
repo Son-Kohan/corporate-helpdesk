@@ -1273,6 +1273,7 @@ function renderUserDetail(user = null) {
           <input name="password" type="password" ${creating ? "required" : ""} minlength="4" maxlength="72" ${canEdit ? "" : "disabled"}>
         </label>
       </div>
+      <div id="user-detail-message" class="message hidden"></div>
       ${canEdit ? `
         <div class="detail-actions">
           <button class="primary-button" type="submit">${creating ? "Создать пользователя" : "Сохранить пользователя"}</button>
@@ -1291,11 +1292,14 @@ function renderUserDetail(user = null) {
   byId("user-detail-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
+    const submitButton = form.querySelector('button[type="submit"]');
+    const rawEmail = form.elements.email.value.trim();
+    const email = rawEmail || null;
     const payload = {
       username: form.elements.username.value,
-      email: form.elements.email.value || null,
-      first_name: form.elements.first_name.value,
-      last_name: form.elements.last_name.value,
+      email,
+      first_name: form.elements.first_name.value.trim(),
+      last_name: form.elements.last_name.value.trim(),
       role: form.elements.role.value,
       is_active: form.elements.is_active.value === "true",
       department_id: form.elements.department_id.value ? Number(form.elements.department_id.value) : null,
@@ -1306,17 +1310,26 @@ function renderUserDetail(user = null) {
     if (form.elements.password.value) {
       payload.password = form.elements.password.value;
     }
-    const saved = creating
-      ? await api.createUser(payload)
-      : await api.updateUser(user.id, payload);
-    await loadUsers();
-    if (saved.id === state.user.id) {
-      state.user = await api.me();
-      configurePermissionUI();
-      byId("current-user").textContent = `${state.user.full_name || state.user.username} · ${roleName(state.user.role)}`;
+    submitButton.disabled = true;
+    setPanelMessage("user-detail-message", creating ? "Создание пользователя..." : "Сохранение пользователя...");
+    try {
+      const saved = creating
+        ? await api.createUser(payload)
+        : await api.updateUser(user.id, payload);
+      await loadUsers();
+      if (saved.id === state.user.id) {
+        state.user = await api.me();
+        configurePermissionUI();
+        byId("current-user").textContent = `${state.user.full_name || state.user.username} · ${roleName(state.user.role)}`;
+      }
+      setPanelMessage("user-detail-message", creating ? "Пользователь создан" : "Пользователь сохранен");
+      toast(creating ? "Пользователь создан" : "Пользователь сохранен");
+      openUserEdit(saved.id);
+    } catch (error) {
+      setPanelMessage("user-detail-message", error.message, true);
+    } finally {
+      submitButton.disabled = false;
     }
-    toast(creating ? "Пользователь создан" : "Пользователь сохранен");
-    openUserEdit(saved.id);
   });
   const resetButton = byId("reset-user-password");
   if (resetButton) {

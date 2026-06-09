@@ -1,11 +1,24 @@
 from datetime import datetime
+import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Role = str
 TicketStatus = Literal["new", "in_progress", "waiting", "resolved", "closed", "cancelled"]
 TicketPriority = Literal["low", "medium", "high", "critical"]
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def validate_optional_email(value: object) -> str | None:
+    if value is None:
+        return None
+    email = str(value).strip()
+    if not email:
+        return None
+    if len(email) > 254 or not EMAIL_PATTERN.match(email):
+        raise ValueError("Некорректный email")
+    return email
 
 
 class Token(BaseModel):
@@ -50,12 +63,14 @@ class UserCreate(BaseModel):
 class UserAdminCreate(BaseModel):
     username: str = Field(min_length=2, max_length=50)
     password: str = Field(min_length=4, max_length=72)
-    email: EmailStr | None = None
+    email: str | None = Field(default=None, max_length=254)
     first_name: str = Field(min_length=1, max_length=60)
     last_name: str = Field(min_length=1, max_length=60)
     role: Role = "user"
     is_active: bool = True
     department_id: int | None = None
+
+    _validate_email = field_validator("email", mode="before")(validate_optional_email)
 
     @model_validator(mode="after")
     def validate_names(self) -> "UserAdminCreate":
@@ -66,13 +81,15 @@ class UserAdminCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     username: str | None = Field(default=None, min_length=2, max_length=50)
-    email: EmailStr | None = None
+    email: str | None = Field(default=None, max_length=254)
     first_name: str | None = Field(default=None, min_length=1, max_length=60)
     last_name: str | None = Field(default=None, min_length=1, max_length=60)
     role: Role | None = None
     is_active: bool | None = None
     department_id: int | None = None
     password: str | None = Field(default=None, min_length=4, max_length=72)
+
+    _validate_email = field_validator("email", mode="before")(validate_optional_email)
 
     @model_validator(mode="after")
     def validate_names(self) -> "UserUpdate":
@@ -86,9 +103,11 @@ class UserUpdate(BaseModel):
 
 
 class UserProfileUpdate(BaseModel):
-    email: EmailStr | None = None
+    email: str | None = Field(default=None, max_length=254)
     first_name: str | None = Field(default=None, min_length=1, max_length=60)
     last_name: str | None = Field(default=None, min_length=1, max_length=60)
+
+    _validate_email = field_validator("email", mode="before")(validate_optional_email)
 
     @model_validator(mode="after")
     def validate_names(self) -> "UserProfileUpdate":
