@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -201,6 +202,19 @@ def _append_log(text: str, settings: Settings | None = None) -> None:
         handle.write(text)
 
 
+def _restart_systemd_process(settings: Settings | None = None) -> None:
+    settings = settings or get_settings()
+    if os.name == "nt" or runtime_mode(settings) != "systemd":
+        return
+
+    def restart() -> None:
+        time.sleep(1)
+        _append_log(f"[{datetime.now(timezone.utc).isoformat()}] Restarting application process for systemd\n", settings)
+        os._exit(0)
+
+    threading.Thread(target=restart, daemon=True).start()
+
+
 def _write_job(job_id: str, payload: dict[str, Any], settings: Settings | None = None) -> None:
     _write_json(job_path(job_id, settings), payload)
 
@@ -238,6 +252,8 @@ def _run_update_job(job_id: str, settings: Settings | None = None) -> None:
         backup = create_backup("pre-update backup", settings)
         _append_log(f"[{started_at}] Pre-update backup created: {backup.filename}\n", settings)
         with log_path(settings).open("a", encoding="utf-8") as handle:
+            environment = os.environ.copy()
+            environment["HELPDESK_SKIP_SCRIPT_BACKUP"] = "1"
             process = subprocess.run(
                 command,
                 cwd=repo_dir(settings),
@@ -245,6 +261,7 @@ def _run_update_job(job_id: str, settings: Settings | None = None) -> None:
                 stdout=handle,
                 stderr=subprocess.STDOUT,
                 text=True,
+                env=environment,
             )
         finished_at = datetime.now(timezone.utc).isoformat()
         succeeded = process.returncode == 0
@@ -273,6 +290,8 @@ def _run_update_job(job_id: str, settings: Settings | None = None) -> None:
                 settings,
             )
         _append_log(f"[{finished_at}] Update job {job_id} finished with exit code {process.returncode}\n", settings)
+        if succeeded:
+            _restart_systemd_process(settings)
     except Exception as exc:
         finished_at = datetime.now(timezone.utc).isoformat()
         with _STATE_LOCK:
