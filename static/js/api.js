@@ -246,6 +246,17 @@ class HelpDeskAPI {
   readAllNotifications() { return this.request("/notifications/read-all", { method: "POST" }); }
   audit() { return this.request("/admin/audit"); }
   exportUsers() { return this.requestBlob("/admin/users.csv"); }
+  backups() { return this.request("/admin/backups"); }
+  createBackup() { return this.request("/admin/backups", { method: "POST" }); }
+  downloadBackup(filename) { return this.requestBlob(`/admin/backups/${encodeURIComponent(filename)}/download`); }
+  deleteBackup(filename) { return this.request(`/admin/backups/${encodeURIComponent(filename)}`, { method: "DELETE" }); }
+  restoreBackup(filename) { return this.request(`/admin/backups/${encodeURIComponent(filename)}/restore`, { method: "POST" }); }
+  uploadBackup(formData) { return this.request("/admin/backups/upload", { method: "POST", body: formData }); }
+  updateStatus() { return this.request("/admin/update/status"); }
+  checkUpdates() { return this.request("/admin/update/check", { method: "POST" }); }
+  runUpdate() { return this.request("/admin/update/run", { method: "POST" }); }
+  updateJob(jobId) { return this.request(`/admin/update/jobs/${encodeURIComponent(jobId)}`); }
+  updateLogs(lines = 80) { return this.request(`/admin/update/logs?lines=${lines}`); }
 }
 
 window.helpdeskAPI = new HelpDeskAPI();

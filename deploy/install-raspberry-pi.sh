@@ -103,7 +103,7 @@ sudo apt-get update
 sudo apt-get install -y \
   python3 python3-venv python3-pip python3-dev \
   build-essential libssl-dev libffi-dev \
-  nginx sqlite3 rsync curl openssl avahi-daemon ufw
+  nginx sqlite3 rsync curl git openssl avahi-daemon ufw
 
 sudo install -d -o "$SERVICE_USER" -g "$SERVICE_GROUP" \
   "$INSTALL_DIR" "$INSTALL_DIR/uploads" "$INSTALL_DIR/logs" "$INSTALL_DIR/backups"
@@ -150,10 +150,37 @@ HELPDESK_NOTIFICATION_LOG=$INSTALL_DIR/logs/notifications.log
 HELPDESK_LOGIN_ATTEMPT_LIMIT=8
 HELPDESK_LOGIN_LOCK_SECONDS=300
 HELPDESK_CORS_ORIGINS=http://${HOST_NAME}.local,http://$SERVER_IP
+HELPDESK_BACKUP_DIR=$INSTALL_DIR/backups
+HELPDESK_BACKUP_KEEP_COUNT=14
+HELPDESK_RUNTIME_MODE=systemd
+HELPDESK_REPO_DIR=$INSTALL_DIR
+HELPDESK_UPDATE_LOG=$INSTALL_DIR/logs/update.log
+HELPDESK_UPDATE_STATE_FILE=$INSTALL_DIR/logs/update-state.json
+HELPDESK_ENABLE_WEB_UPDATE=true
+HELPDESK_WEB_UPDATE_COMMAND=$INSTALL_DIR/deploy/update-raspberry-pi.sh
 EOF
   sudo chown "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR/.env"
   sudo chmod 600 "$INSTALL_DIR/.env"
 fi
+
+append_env_if_missing() {
+  local key="$1"
+  local value="$2"
+  if ! sudo grep -q "^${key}=" "$INSTALL_DIR/.env"; then
+    echo "${key}=${value}" | sudo tee -a "$INSTALL_DIR/.env" >/dev/null
+  fi
+}
+
+append_env_if_missing "HELPDESK_BACKUP_DIR" "$INSTALL_DIR/backups"
+append_env_if_missing "HELPDESK_BACKUP_KEEP_COUNT" "14"
+append_env_if_missing "HELPDESK_RUNTIME_MODE" "systemd"
+append_env_if_missing "HELPDESK_REPO_DIR" "$INSTALL_DIR"
+append_env_if_missing "HELPDESK_UPDATE_LOG" "$INSTALL_DIR/logs/update.log"
+append_env_if_missing "HELPDESK_UPDATE_STATE_FILE" "$INSTALL_DIR/logs/update-state.json"
+append_env_if_missing "HELPDESK_ENABLE_WEB_UPDATE" "true"
+append_env_if_missing "HELPDESK_WEB_UPDATE_COMMAND" "$INSTALL_DIR/deploy/update-raspberry-pi.sh"
+sudo chown "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR/.env"
+sudo chmod 600 "$INSTALL_DIR/.env"
 
 sudo chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
 

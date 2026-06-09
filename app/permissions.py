@@ -20,6 +20,8 @@ ALL_PERMISSIONS = {
     "roles.manage": "Управление ролями и правами",
     "catalogs.manage": "Управление категориями, отделами и SLA",
     "audit.read": "Просмотр журнала действий",
+    "manage_backups": "Управление резервными копиями",
+    "manage_updates": "Управление обновлением системы",
     "reports.view": "Просмотр отчетов",
     "reports.export": "Экспорт отчетов",
 }

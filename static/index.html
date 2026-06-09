@@ -280,6 +280,12 @@
           <button id="settings-audit-tab" class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="settings-audit-panel">
             Журнал действий
           </button>
+          <button id="settings-backups-tab" class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="settings-backups-panel">
+            Резервные копии <span id="settings-backup-count" class="tab-count">0</span>
+          </button>
+          <button id="settings-updates-tab" class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="settings-updates-panel">
+            Обновление системы
+          </button>
         </nav>
 
         <div class="settings-content">
@@ -351,6 +357,37 @@
               <button id="export-users" class="secondary-button" type="button">Экспорт пользователей</button>
             </div>
             <div id="audit-list" class="history-list"></div>
+          </section>
+
+          <section id="settings-backups-panel" class="panel settings-panel hidden" role="tabpanel">
+            <div class="panel-row">
+              <h3>Резервные копии</h3>
+              <div class="detail-actions">
+                <button id="create-backup" class="primary-button" type="button">Создать резервную копию</button>
+                <button id="upload-backup-trigger" class="secondary-button" type="button">Загрузить копию</button>
+                <button id="refresh-backups" class="icon-button" type="button" title="Обновить">↻</button>
+              </div>
+            </div>
+            <input id="backup-upload-input" class="hidden" type="file" accept=".tar.gz">
+            <div id="backups-status" class="message hidden"></div>
+            <div id="backups-list" class="backup-list"></div>
+          </section>
+
+          <section id="settings-updates-panel" class="panel settings-panel hidden" role="tabpanel">
+            <div class="panel-row">
+              <h3>Обновление системы</h3>
+              <div class="detail-actions">
+                <button id="check-updates" class="secondary-button" type="button">Проверить обновления</button>
+                <button id="run-update" class="primary-button" type="button">Обновить систему</button>
+                <button id="refresh-update-log" class="icon-button" type="button" title="Обновить лог">↻</button>
+              </div>
+            </div>
+            <div id="update-summary" class="update-summary"></div>
+            <div id="update-job-status" class="message hidden"></div>
+            <div class="detail-section">
+              <h3>Лог обновления</h3>
+              <pre id="update-log" class="update-log"></pre>
+            </div>
           </section>
         </div>
       </section>

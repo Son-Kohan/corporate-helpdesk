@@ -1,40 +1,30 @@
 #!/usr/bin/env python3
 import argparse
-import datetime as dt
-import sqlite3
-from contextlib import closing
+import os
+import sys
 from pathlib import Path
 
 
-def create_backup(db_path: Path, backup_dir: Path, keep: int) -> Path:
-    db_path = db_path.resolve()
-    backup_dir = backup_dir.resolve()
-
-    if not db_path.exists():
-        raise FileNotFoundError(f"Database file not found: {db_path}")
-
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-    target = backup_dir / f"{db_path.stem}_{timestamp}{db_path.suffix}"
-    with closing(sqlite3.connect(db_path)) as source, closing(sqlite3.connect(target)) as destination:
-        source.backup(destination)
-
-    backups = sorted(backup_dir.glob(f"{db_path.stem}_*{db_path.suffix}"))
-    for old_backup in backups[:-keep]:
-        old_backup.unlink()
-
-    return target
-
-
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Create SQLite database backup.")
-    parser.add_argument("--db", default="helpdesk.db", type=Path)
-    parser.add_argument("--backup-dir", default="backups", type=Path)
-    parser.add_argument("--keep", default=7, type=int)
+    parser = argparse.ArgumentParser(description="Create Help Desk backup archive.")
+    parser.add_argument("--db", default=None, type=Path, help="Legacy SQLite database path override")
+    parser.add_argument("--backup-dir", default=None, type=Path)
+    parser.add_argument("--keep", default=None, type=int)
+    parser.add_argument("--note", default="scheduled backup")
     args = parser.parse_args()
 
-    backup = create_backup(args.db, args.backup_dir, args.keep)
-    print(f"Backup created: {backup}")
+    if args.db:
+        os.environ["HELPDESK_DATABASE_URL"] = f"sqlite+aiosqlite:///{args.db.as_posix()}"
+    if args.backup_dir:
+        os.environ["HELPDESK_BACKUP_DIR"] = str(args.backup_dir)
+    if args.keep is not None:
+        os.environ["HELPDESK_BACKUP_KEEP_COUNT"] = str(args.keep)
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from app.backup_manager import backup_dir, create_backup
+
+    backup = create_backup(args.note)
+    print(f"Backup created: {backup_dir() / backup.filename}")
 
 
 if __name__ == "__main__":

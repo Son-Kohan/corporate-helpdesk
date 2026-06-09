@@ -11,6 +11,9 @@ const state = {
   notifications: [],
   audit: [],
   settings: {},
+  backups: [],
+  updateStatus: null,
+  updateJobTimer: null,
   settingsTab: "settings-users-panel",
   ticketTab: "ticket-main-panel",
   selectedTicketIds: new Set(),
@@ -138,7 +141,12 @@ function refreshStatsIfAllowed() {
 function configurePermissionUI() {
   byId("reports-nav").classList.toggle("hidden", !hasPerm("reports.view"));
   const canSeeUsersSettings = hasPerm("users.read") || hasPerm("users.create");
-  const canSeeSettings = canSeeUsersSettings || hasPerm("roles.manage") || hasPerm("catalogs.manage") || hasPerm("audit.read");
+  const canSeeSettings = canSeeUsersSettings
+    || hasPerm("roles.manage")
+    || hasPerm("catalogs.manage")
+    || hasPerm("audit.read")
+    || hasPerm("manage_backups")
+    || hasPerm("manage_updates");
   byId("settings-nav").classList.toggle("hidden", !canSeeSettings);
   byId("settings-users-tab").classList.toggle("hidden", !canSeeUsersSettings);
   byId("settings-roles-tab").classList.toggle("hidden", !hasPerm("roles.manage"));
@@ -146,6 +154,8 @@ function configurePermissionUI() {
   byId("settings-departments-tab").classList.toggle("hidden", !hasPerm("catalogs.manage"));
   byId("settings-sla-tab").classList.toggle("hidden", !hasPerm("catalogs.manage"));
   byId("settings-audit-tab").classList.toggle("hidden", !hasPerm("audit.read"));
+  byId("settings-backups-tab").classList.toggle("hidden", !hasPerm("manage_backups"));
+  byId("settings-updates-tab").classList.toggle("hidden", !hasPerm("manage_updates"));
   byId("create-user").classList.toggle("hidden", !hasPerm("users.create"));
   byId("export-tickets").classList.toggle("hidden", !hasPerm("reports.export"));
   byId("export-users").classList.toggle("hidden", !hasPerm("reports.export"));
@@ -200,6 +210,28 @@ function formatDateShort(value) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (bytes < 1024) {
+    return `${bytes} Б`;
+  }
+  const units = ["КБ", "МБ", "ГБ"];
+  let size = bytes / 1024;
+  let index = 0;
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index += 1;
+  }
+  return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[index]}`;
+}
+
+function setPanelMessage(id, message, isError = false) {
+  const element = byId(id);
+  element.textContent = message || "";
+  element.classList.toggle("hidden", !message);
+  element.classList.toggle("error", isError);
 }
 
 function slaBadge(ticket) {
@@ -298,6 +330,10 @@ function fillProfileForm() {
 }
 
 function stopSession() {
+  if (state.updateJobTimer) {
+    window.clearInterval(state.updateJobTimer);
+    state.updateJobTimer = null;
+  }
   if (state.socket) {
     state.socket.close();
     state.socket = null;
@@ -309,6 +345,8 @@ function stopSession() {
   state.categories = [];
   state.departments = [];
   state.notifications = [];
+  state.backups = [];
+  state.updateStatus = null;
   state.selectedTicketIds.clear();
   state.selectedTicketId = null;
   state.selectedRoleCode = null;
@@ -866,6 +904,8 @@ async function loadSettingsView() {
   await Promise.all([
     hasPerm("users.read") ? loadUsers() : Promise.resolve(),
     hasPerm("roles.manage") ? loadRoles(true) : Promise.resolve(),
+    hasPerm("manage_backups") ? loadBackups(true) : Promise.resolve(),
+    hasPerm("manage_updates") ? loadUpdateStatus(true) : Promise.resolve(),
   ]);
   const [settings, audit] = await Promise.all([
     hasPerm("catalogs.manage") ? api.settings() : Promise.resolve({}),
@@ -884,6 +924,7 @@ async function loadSettingsView() {
   byId("settings-role-count").textContent = state.roles.length;
   byId("settings-category-count").textContent = state.categories.length;
   byId("settings-department-count").textContent = state.departments.length;
+  byId("settings-backup-count").textContent = state.backups.length;
 
   byId("categories-list").innerHTML = state.categories.map((item) => `
     <div class="catalog-item" data-category-id="${item.id}">
@@ -918,6 +959,214 @@ async function loadSettingsView() {
     });
   });
   switchSettingsTab();
+}
+
+async function loadBackups(silent = false) {
+  if (!hasPerm("manage_backups")) {
+    state.backups = [];
+    return;
+  }
+  try {
+    state.backups = await api.backups();
+    renderBackups();
+    byId("settings-backup-count").textContent = state.backups.length;
+  } catch (error) {
+    if (!silent) {
+      setPanelMessage("backups-status", error.message, true);
+    }
+  }
+}
+
+function renderBackups() {
+  const container = byId("backups-list");
+  if (!state.backups.length) {
+    container.innerHTML = '<div class="empty-state">Резервных копий пока нет</div>';
+    return;
+  }
+  container.innerHTML = `
+    <div class="backup-list-header" aria-hidden="true">
+      <span>Файл</span>
+      <span>Дата</span>
+      <span>Размер</span>
+      <span>База</span>
+      <span>Версия</span>
+      <span>Commit</span>
+      <span></span>
+    </div>
+    ${state.backups.map((backup) => `
+      <article class="backup-row" data-backup-file="${escapeHtml(backup.filename)}">
+        <strong title="${escapeHtml(backup.filename)}">${escapeHtml(backup.filename)}</strong>
+        <span>${formatDate(backup.created_at)}</span>
+        <span>${formatBytes(backup.size_bytes)}</span>
+        <span>${escapeHtml(backup.database_type || "-")}</span>
+        <span>${escapeHtml(backup.app_version || "-")}</span>
+        <span>${escapeHtml(backup.git_commit || "-")}</span>
+        <span class="detail-actions">
+          <button class="secondary-button download-backup" type="button">Скачать</button>
+          <button class="secondary-button restore-backup" type="button">Восстановить</button>
+          <button class="secondary-button danger-button delete-backup" type="button">Удалить</button>
+        </span>
+      </article>
+    `).join("")}
+  `;
+
+  container.querySelectorAll(".download-backup").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const filename = button.closest("[data-backup-file]").dataset.backupFile;
+      const blob = await api.downloadBackup(filename);
+      downloadBlob(blob, filename);
+    });
+  });
+  container.querySelectorAll(".restore-backup").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const filename = button.closest("[data-backup-file]").dataset.backupFile;
+      if (!window.confirm("Восстановление заменит текущие данные системы. Перед восстановлением будет создана автоматическая резервная копия текущего состояния.")) {
+        return;
+      }
+      setPanelMessage("backups-status", "Восстановление выполняется...");
+      await api.restoreBackup(filename);
+      setPanelMessage("backups-status", "Система восстановлена из резервной копии");
+      await loadBackups(true);
+    });
+  });
+  container.querySelectorAll(".delete-backup").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const filename = button.closest("[data-backup-file]").dataset.backupFile;
+      if (!window.confirm(`Удалить резервную копию ${filename}?`)) {
+        return;
+      }
+      await api.deleteBackup(filename);
+      setPanelMessage("backups-status", "Резервная копия удалена");
+      await loadBackups(true);
+    });
+  });
+}
+
+async function loadUpdateStatus(silent = false) {
+  if (!hasPerm("manage_updates")) {
+    state.updateStatus = null;
+    return;
+  }
+  try {
+    state.updateStatus = await api.updateStatus();
+    renderUpdateStatus();
+    await loadUpdateLog(true);
+  } catch (error) {
+    if (!silent) {
+      setPanelMessage("update-job-status", error.message, true);
+    }
+  }
+}
+
+function updateStatusLabel(value) {
+  return {
+    idle: "не запускалось",
+    running: "выполняется",
+    success: "успешно",
+    failed: "ошибка",
+  }[value] || value || "-";
+}
+
+function checkStatusLabel(value) {
+  return {
+    idle: "не проверялось",
+    success: "успешно",
+    failed: "ошибка",
+  }[value] || value || "-";
+}
+
+function renderUpdateStatus() {
+  const status = state.updateStatus;
+  const container = byId("update-summary");
+  if (!status) {
+    container.innerHTML = '<div class="empty-state">Статус обновления не загружен</div>';
+    return;
+  }
+  const available = status.update_available === null || status.update_available === undefined
+    ? "не проверялось"
+    : status.update_available
+      ? "есть новая версия"
+      : "обновлений нет";
+  const canRunUpdate = status.web_update_enabled && status.last_update_status !== "running";
+  const currentCommit = status.current_commit ? status.current_commit.slice(0, 12) : "-";
+  const remoteCommit = status.remote_commit ? status.remote_commit.slice(0, 12) : "-";
+  container.innerHTML = `
+    <div class="update-hero">
+      <div>
+        <span class="section-eyebrow">Текущая версия</span>
+        <strong>${escapeHtml(status.app_version || "-")}</strong>
+        <small>${escapeHtml(status.current_branch || "-")} · ${escapeHtml(currentCommit)}</small>
+      </div>
+      <span class="state-pill ${status.update_available ? "warning" : "ok"}">${escapeHtml(available)}</span>
+    </div>
+    <div class="summary-grid update-grid">
+      <div>
+        <span>Режим работы</span>
+        <strong>${escapeHtml(status.runtime_mode || "-")}</strong>
+      </div>
+      <div>
+        <span>Обновление кнопкой</span>
+        <strong>${status.web_update_enabled ? "включено" : "отключено"}</strong>
+      </div>
+      <div>
+        <span>Commit в GitHub</span>
+        <strong>${escapeHtml(remoteCommit)}</strong>
+      </div>
+      <div>
+        <span>Последняя проверка</span>
+        <strong>${status.last_check_at ? formatDate(status.last_check_at) : "-"}</strong>
+        <small>${checkStatusLabel(status.last_check_status)}</small>
+      </div>
+      <div>
+        <span>Последний запуск</span>
+        <strong>${updateStatusLabel(status.last_update_status)}</strong>
+        <small>${status.last_update_at ? formatDate(status.last_update_at) : "запусков не было"}</small>
+      </div>
+      <div>
+        <span>Лог</span>
+        <strong>${escapeHtml(status.update_log_path || "-")}</strong>
+      </div>
+    </div>
+    ${status.web_update_enabled
+      ? '<div class="settings-note ok">Кнопка обновления включена. Перед запуском система автоматически создаст резервную копию.</div>'
+      : '<div class="settings-note warning"><strong>Почему кнопка отключена:</strong> на сервере не включен параметр HELPDESK_ENABLE_WEB_UPDATE. На Windows-локалхосте это нормально, потому что обновление запускает Linux-скрипт для Raspberry Pi. После установки на Pi установщик включит этот режим в .env.</div>'}
+    ${status.last_check_message ? `<div class="settings-note ${status.last_check_status === "failed" ? "error" : ""}">${escapeHtml(status.last_check_message)}</div>` : ""}
+    ${status.last_update_message ? `<div class="settings-note ${status.last_update_status === "failed" ? "error" : ""}">${escapeHtml(status.last_update_message)}</div>` : ""}
+  `;
+  const runButton = byId("run-update");
+  runButton.disabled = !canRunUpdate;
+  runButton.title = status.web_update_enabled
+    ? "Запустить обновление системы"
+    : "Кнопка включается параметром HELPDESK_ENABLE_WEB_UPDATE на сервере";
+}
+
+async function loadUpdateLog(silent = false) {
+  if (!hasPerm("manage_updates")) {
+    return;
+  }
+  try {
+    const log = await api.updateLogs(120);
+    byId("update-log").textContent = log.lines.length ? log.lines.join("\n") : "Лог пока пуст";
+  } catch (error) {
+    if (!silent) {
+      setPanelMessage("update-job-status", error.message, true);
+    }
+  }
+}
+
+async function pollUpdateJob(jobId) {
+  if (state.updateJobTimer) {
+    window.clearInterval(state.updateJobTimer);
+  }
+  state.updateJobTimer = window.setInterval(async () => {
+    const job = await api.updateJob(jobId);
+    setPanelMessage("update-job-status", job.message || updateStatusLabel(job.status), job.status === "failed");
+    await Promise.all([loadUpdateStatus(true), loadUpdateLog(true)]);
+    if (job.status !== "queued" && job.status !== "running") {
+      window.clearInterval(state.updateJobTimer);
+      state.updateJobTimer = null;
+    }
+  }, 2500);
 }
 
 async function loadRoles(silent = false) {
@@ -1476,6 +1725,57 @@ function bindEvents() {
   byId("refresh-roles").addEventListener("click", async () => {
     await loadRoles();
     toast("Роли обновлены");
+  });
+
+  byId("refresh-backups").addEventListener("click", async () => {
+    await loadBackups();
+    toast("Список резервных копий обновлен");
+  });
+
+  byId("create-backup").addEventListener("click", async () => {
+    setPanelMessage("backups-status", "Создание резервной копии...");
+    await api.createBackup();
+    setPanelMessage("backups-status", "Резервная копия создана");
+    await loadBackups(true);
+  });
+
+  byId("upload-backup-trigger").addEventListener("click", () => {
+    byId("backup-upload-input").click();
+  });
+
+  byId("backup-upload-input").addEventListener("change", async (event) => {
+    const file = event.currentTarget.files[0];
+    if (!file) {
+      return;
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+    setPanelMessage("backups-status", "Загрузка резервной копии...");
+    await api.uploadBackup(formData);
+    event.currentTarget.value = "";
+    setPanelMessage("backups-status", "Резервная копия загружена");
+    await loadBackups(true);
+  });
+
+  byId("check-updates").addEventListener("click", async () => {
+    setPanelMessage("update-job-status", "Проверка обновлений...");
+    state.updateStatus = await api.checkUpdates();
+    renderUpdateStatus();
+    setPanelMessage("update-job-status", "Проверка обновлений завершена", state.updateStatus.last_check_status === "failed");
+  });
+
+  byId("run-update").addEventListener("click", async () => {
+    if (!window.confirm("Перед обновлением будет создана резервная копия. Запустить обновление системы?")) {
+      return;
+    }
+    const job = await api.runUpdate();
+    setPanelMessage("update-job-status", job.message || "Обновление запущено");
+    await pollUpdateJob(job.job_id);
+  });
+
+  byId("refresh-update-log").addEventListener("click", async () => {
+    await Promise.all([loadUpdateStatus(true), loadUpdateLog()]);
+    toast("Лог обновлен");
   });
 
   byId("category-form").addEventListener("submit", async (event) => {

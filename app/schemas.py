@@ -283,6 +283,53 @@ class BulkTicketUpdate(BaseModel):
     category_id: int | None = None
 
 
+class BackupRead(BaseModel):
+    filename: str
+    created_at: datetime | None = None
+    size_bytes: int
+    database_type: str
+    app_version: str | None = None
+    git_commit: str | None = None
+    runtime_mode: str | None = None
+    contents: list[str] = []
+    note: str | None = None
+
+
+class OperationResult(BaseModel):
+    message: str
+
+
+class UpdateStatusRead(BaseModel):
+    app_version: str
+    current_commit: str | None = None
+    current_branch: str | None = None
+    runtime_mode: str
+    web_update_enabled: bool
+    update_available: bool | None = None
+    remote_commit: str | None = None
+    last_check_at: datetime | None = None
+    last_check_status: Literal["idle", "success", "failed"] = "idle"
+    last_check_message: str | None = None
+    last_update_at: datetime | None = None
+    last_update_status: Literal["idle", "running", "success", "failed"] = "idle"
+    last_update_message: str | None = None
+    last_job_id: str | None = None
+    update_log_path: str | None = None
+
+
+class UpdateJobRead(BaseModel):
+    job_id: str
+    status: Literal["queued", "running", "success", "failed"]
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    message: str | None = None
+    exit_code: int | None = None
+
+
+class UpdateLogRead(BaseModel):
+    lines: list[str]
+
+
 class SettingUpdate(BaseModel):
     settings: dict[str, str]
 
