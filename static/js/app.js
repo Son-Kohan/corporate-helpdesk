@@ -234,6 +234,57 @@ function setPanelMessage(id, message, isError = false) {
   element.classList.toggle("error", isError);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function showMaintenanceOverlay(title, message) {
+  byId("maintenance-title").textContent = title;
+  byId("maintenance-message").textContent = message;
+  byId("maintenance-overlay").classList.remove("hidden");
+}
+
+function updateMaintenanceOverlay(title, message) {
+  byId("maintenance-title").textContent = title;
+  byId("maintenance-message").textContent = message;
+}
+
+function hideMaintenanceOverlay() {
+  byId("maintenance-overlay").classList.add("hidden");
+}
+
+async function waitForServerReady({
+  title = "Система запускается",
+  message = "Подождите, сервер снова становится доступен.",
+  timeoutMs = 120000,
+  initialDelayMs = 2000,
+  reload = true,
+} = {}) {
+  updateMaintenanceOverlay(title, message);
+  await sleep(initialDelayMs);
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const response = await fetch("/health", { cache: "no-store" });
+      if (response.ok) {
+        updateMaintenanceOverlay("Система готова", "Обновляю страницу...");
+        await sleep(800);
+        if (reload) {
+          window.location.reload();
+        }
+        return true;
+      }
+    } catch (error) {
+      // Server can be temporarily unavailable while systemd restarts the app.
+    }
+    await sleep(2000);
+  }
+  updateMaintenanceOverlay("Сервер долго не отвечает", "Обновите страницу вручную через минуту или проверьте службу helpdesk.");
+  await sleep(5000);
+  hideMaintenanceOverlay();
+  return false;
+}
+
 function slaBadge(ticket) {
   if (!ticket.due_at) {
     return "";
@@ -1020,13 +1071,21 @@ function renderBackups() {
   container.querySelectorAll(".restore-backup").forEach((button) => {
     button.addEventListener("click", async () => {
       const filename = button.closest("[data-backup-file]").dataset.backupFile;
-      if (!window.confirm("Восстановление заменит текущие данные системы. Перед восстановлением будет создана автоматическая резервная копия текущего состояния.")) {
+      if (!window.confirm("Восстановление заменит текущие данные системы. Перед восстановлением будет создана аварийная копия текущего состояния, а старые backup-файлы будут очищены.")) {
         return;
       }
+      showMaintenanceOverlay("Восстановление системы", "Данные восстанавливаются из резервной копии. Не закрывайте страницу.");
       setPanelMessage("backups-status", "Восстановление выполняется...");
-      await api.restoreBackup(filename);
-      setPanelMessage("backups-status", "Система восстановлена из резервной копии");
-      await loadBackups(true);
+      try {
+        await api.restoreBackup(filename);
+        setPanelMessage("backups-status", "Система восстановлена из резервной копии");
+        updateMaintenanceOverlay("Восстановление завершено", "Обновляю страницу...");
+        await sleep(800);
+        window.location.reload();
+      } catch (error) {
+        hideMaintenanceOverlay();
+        setPanelMessage("backups-status", error.message, true);
+      }
     });
   });
   container.querySelectorAll(".delete-backup").forEach((button) => {
@@ -1157,16 +1216,42 @@ async function loadUpdateLog(silent = false) {
 async function pollUpdateJob(jobId) {
   if (state.updateJobTimer) {
     window.clearInterval(state.updateJobTimer);
+    state.updateJobTimer = null;
   }
-  state.updateJobTimer = window.setInterval(async () => {
-    const job = await api.updateJob(jobId);
-    setPanelMessage("update-job-status", job.message || updateStatusLabel(job.status), job.status === "failed");
-    await Promise.all([loadUpdateStatus(true), loadUpdateLog(true)]);
-    if (job.status !== "queued" && job.status !== "running") {
-      window.clearInterval(state.updateJobTimer);
-      state.updateJobTimer = null;
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 10 * 60 * 1000) {
+    try {
+      const job = await api.updateJob(jobId);
+      const message = job.message || updateStatusLabel(job.status);
+      setPanelMessage("update-job-status", message, job.status === "failed");
+      updateMaintenanceOverlay("Обновление системы", message);
+      await Promise.all([loadUpdateStatus(true), loadUpdateLog(true)]).catch(() => null);
+      if (job.status === "success") {
+        setPanelMessage("update-job-status", "Обновление завершено. Система перезапускается...");
+        await waitForServerReady({
+          title: "Обновление завершено",
+          message: "Система перезапускается. Не закрывайте страницу.",
+          initialDelayMs: 2500,
+        });
+        return job;
+      }
+      if (job.status === "failed") {
+        hideMaintenanceOverlay();
+        return job;
+      }
+    } catch (error) {
+      await waitForServerReady({
+        title: "Система перезапускается",
+        message: "Соединение временно пропало. Жду, пока Help Desk снова поднимется.",
+        initialDelayMs: 1000,
+      });
+      return null;
     }
-  }, 2500);
+    await sleep(2500);
+  }
+  hideMaintenanceOverlay();
+  setPanelMessage("update-job-status", "Обновление выполняется слишком долго. Проверьте лог и состояние службы.", true);
+  return null;
 }
 
 async function loadRoles(silent = false) {
@@ -1781,9 +1866,15 @@ function bindEvents() {
     if (!window.confirm("Перед обновлением будет создана резервная копия. Запустить обновление системы?")) {
       return;
     }
-    const job = await api.runUpdate();
-    setPanelMessage("update-job-status", job.message || "Обновление запущено");
-    await pollUpdateJob(job.job_id);
+    showMaintenanceOverlay("Обновление системы", "Создается резервная копия и загружается новая версия.");
+    try {
+      const job = await api.runUpdate();
+      setPanelMessage("update-job-status", job.message || "Обновление запущено");
+      await pollUpdateJob(job.job_id);
+    } catch (error) {
+      hideMaintenanceOverlay();
+      setPanelMessage("update-job-status", error.message, true);
+    }
   });
 
   byId("refresh-update-log").addEventListener("click", async () => {

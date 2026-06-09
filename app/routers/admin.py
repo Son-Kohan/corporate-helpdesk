@@ -21,6 +21,7 @@ from app.database import get_db
 from app.models import AuditLog, User
 from app.schemas import (
     AuditLogRead,
+    BackupCreate,
     BackupRead,
     OperationResult,
     UpdateJobRead,
@@ -90,10 +91,12 @@ async def admin_backups(_: User = Depends(require_permission("manage_backups")))
 
 @router.post("/backups", response_model=BackupRead, status_code=status.HTTP_201_CREATED)
 async def admin_create_backup(
+    payload: BackupCreate | None = None,
     current_user: User = Depends(require_permission("manage_backups")),
     db: AsyncSession = Depends(get_db),
 ) -> BackupRead:
-    backup = await to_thread(create_backup, "manual backup")
+    note = payload.note if payload and payload.note else "manual backup"
+    backup = await to_thread(create_backup, note)
     await add_audit(db, current_user, "backup.created", "backup", backup.filename)
     await db.commit()
     return backup

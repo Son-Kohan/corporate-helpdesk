@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Help Desk</title>
-  <link rel="stylesheet" href="/static/css/styles.css?v=20260607-v3">
+  <link rel="stylesheet" href="/static/css/styles.css?v=20260609-v4">
 </head>
 <body>
   <section id="auth-screen" class="auth-layout">
@@ -432,8 +432,15 @@
   </section>
 
   <div id="toast" class="toast hidden"></div>
+  <div id="maintenance-overlay" class="maintenance-overlay hidden" role="status" aria-live="polite" aria-modal="true">
+    <div class="maintenance-box">
+      <span class="maintenance-spinner" aria-hidden="true"></span>
+      <h2 id="maintenance-title">Система обновляется</h2>
+      <p id="maintenance-message">Подождите, пожалуйста.</p>
+    </div>
+  </div>
 
-  <script src="/static/js/api.js?v=20260607-v1"></script>
-  <script src="/static/js/app.js?v=20260607-v1"></script>
+  <script src="/static/js/api.js?v=20260609-v4"></script>
+  <script src="/static/js/app.js?v=20260609-v4"></script>
 </body>
 </html>

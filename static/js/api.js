@@ -262,7 +262,12 @@ class HelpDeskAPI {
   audit() { return this.request("/admin/audit"); }
   exportUsers() { return this.requestBlob("/admin/users.csv"); }
   backups() { return this.request("/admin/backups"); }
-  createBackup() { return this.request("/admin/backups", { method: "POST" }); }
+  createBackup(note = null) {
+    return this.request("/admin/backups", {
+      method: "POST",
+      body: note ? { note } : {},
+    });
+  }
   downloadBackup(filename) { return this.requestBlob(`/admin/backups/${encodeURIComponent(filename)}/download`); }
   deleteBackup(filename) { return this.request(`/admin/backups/${encodeURIComponent(filename)}`, { method: "DELETE" }); }
   restoreBackup(filename) { return this.request(`/admin/backups/${encodeURIComponent(filename)}/restore`, { method: "POST" }); }

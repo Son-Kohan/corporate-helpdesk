@@ -256,7 +256,7 @@ def _safe_extract(archive_path: Path, target_dir: Path) -> None:
 
 def _restore_sqlite_dump(dump_path: Path, settings: Settings | None = None) -> None:
     target = sqlite_db_path(settings)
-    with sqlite3.connect(dump_path) as connection:
+    with closing(sqlite3.connect(dump_path)) as connection:
         if connection.execute("PRAGMA quick_check").fetchone()[0] != "ok":
             raise RuntimeError("Backup database integrity check failed")
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -361,7 +361,28 @@ def _restore_archive_file(
                     pass
             raise
 
-    return read_backup_metadata(archive_path, settings)
+    restored = read_backup_metadata(archive_path, settings)
+    if create_pre_restore_backup:
+        _cleanup_backups_after_restore(archive_path, rollback_archive, settings)
+    return restored
+
+
+def _cleanup_backups_after_restore(
+    restored_archive: Path,
+    rollback_archive: Path | None,
+    settings: Settings | None = None,
+) -> None:
+    root = backup_dir(settings)
+    keep = {restored_archive.resolve()}
+    if rollback_archive:
+        keep.add(rollback_archive.resolve())
+    for path in root.glob("*.tar.gz"):
+        if path.resolve() in keep:
+            continue
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def restore_backup(filename: str, settings: Settings | None = None) -> BackupRead:

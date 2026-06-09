@@ -314,6 +314,10 @@ class BackupRead(BaseModel):
     note: str | None = None
 
 
+class BackupCreate(BaseModel):
+    note: str | None = Field(default=None, max_length=500)
+
+
 class OperationResult(BaseModel):
     message: str
 
