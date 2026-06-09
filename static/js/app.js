@@ -1837,22 +1837,45 @@ function bindEvents() {
     await loadBackups(true);
   });
 
-  byId("upload-backup-trigger").addEventListener("click", () => {
+  const uploadBackupTrigger = byId("upload-backup-trigger");
+  uploadBackupTrigger.addEventListener("click", () => {
+    setPanelMessage("backups-status", "");
     byId("backup-upload-input").click();
   });
 
   byId("backup-upload-input").addEventListener("change", async (event) => {
-    const file = event.currentTarget.files[0];
+    const input = event.currentTarget;
+    const file = input.files[0];
     if (!file) {
+      setPanelMessage("backups-status", "");
+      input.value = "";
+      return;
+    }
+    if (!file.name.endsWith(".tar.gz")) {
+      setPanelMessage("backups-status", "Загрузите файл резервной копии с расширением .tar.gz", true);
+      input.value = "";
       return;
     }
     const formData = new FormData();
     formData.append("file", file);
     setPanelMessage("backups-status", "Загрузка резервной копии...");
-    await api.uploadBackup(formData);
-    event.currentTarget.value = "";
-    setPanelMessage("backups-status", "Резервная копия загружена");
-    await loadBackups(true);
+    uploadBackupTrigger.disabled = true;
+    try {
+      await api.uploadBackup(formData);
+      await loadBackups(true);
+      setPanelMessage("backups-status", "Резервная копия загружена");
+      window.setTimeout(() => {
+        const status = byId("backups-status");
+        if (status.textContent === "Резервная копия загружена") {
+          setPanelMessage("backups-status", "");
+        }
+      }, 3000);
+    } catch (error) {
+      setPanelMessage("backups-status", error.message, true);
+    } finally {
+      uploadBackupTrigger.disabled = false;
+      input.value = "";
+    }
   });
 
   byId("check-updates").addEventListener("click", async () => {
